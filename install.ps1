@@ -1,14 +1,17 @@
-# ----- התקנת Git בשקט (ללא אתחול/פופ-אפים) -----
+# =========================
+# Git for Windows + Config (User Context)
+# =========================
 $ErrorActionPreference = 'Stop'
-$installer = Join-Path $PSScriptRoot 'Git-<version>-64-bit.exe'
 
-# דגלים שקטים של Inno Setup; אפשר להוסיף /LOG="C:\git-install.log" לטרבלשוטינג
+# 1) התקנת Git בשקט
+$installer = Join-Path $PSScriptRoot 'Git-2.51.0-64-bit.exe'
+if (-not (Test-Path $installer)) { throw "Git installer not found: $installer" }
+
+# פריסה שקטה (Inno Setup). ניתן לצרף /LOG לטרבלשוטינג
 $args = '/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS'
 Start-Process -FilePath $installer -ArgumentList $args -Wait
 
-# ----- מציאת git.exe -----
-# Git for Windows רושם בחלונות HKLM\SOFTWARE\GitForWindows את ה-InstallPath (בהתקנה מערכתית).
-# אם PATH כבר מעודכן, מספיק לקרוא git ישירות.
+# 2) איתור git.exe בצורה יציבה
 function Resolve-Git {
   $candidates = @(
     "git.exe",
@@ -18,10 +21,10 @@ function Resolve-Git {
     "C:\Program Files (x86)\Git\cmd\git.exe"
   )
   foreach ($p in $candidates) {
-    $g = (Get-Command $p -ErrorAction SilentlyContinue)
-    if ($g) { return $g.Source }
+    $cmd = Get-Command $p -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
   }
-  # ניסיון דרך הרישום (אם הותקן לכל המחשב)
+  # ניסיון דרך הרישום (בהתקנה מערכתית)
   $reg = 'HKLM:\SOFTWARE\GitForWindows'
   if (Test-Path $reg) {
     $installPath = (Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue).InstallPath
@@ -32,21 +35,26 @@ function Resolve-Git {
       }
     }
   }
-  throw "git.exe not found on this session PATH or standard locations."
+  throw "git.exe not found on PATH or standard locations."
 }
-$gitExe = Resolve-Git
+$git = Resolve-Git
 
-# ----- קונפיגורציות GLOBAL בהקשר המשתמש -----
-# הסרות (מתעלם משגיאה אם הערך לא קיים)
-& $gitExe config --global --unset-all credential.helper 2>$null
-& $gitExe config --global --unset-all credential.useHttpPath 2>$null
+# 3) קונפיגורציה ברמת GLOBAL (משתמש)
+#    (הסרות – לא ייכשלו אם לא קיים; אנו משתיקים STDERR)
+& $git config --global --unset-all credential.helper 2>$null
+& $git config --global --unset-all credential.useHttpPath 2>$null
 
-# הוספת helper מותנה-URL (מצטט את המפתח כדי למנוע בעיות עם * ו-: ב-PowerShell)
-& $gitExe config --global "credential.https://*.*.p.sourcemanager.dev.helper" gcloud.cmd
+#    (הוספה – מצטטים את המפתח כדי להימנע מבעיות עם * ו- :)
+& $git config --global "credential.https://*.*.p.sourcemanager.dev.helper" gcloud.cmd
 
-# ----- סימון הצלחה לזיהוי ב-Intune -----
-$marker = "$env:LOCALAPPDATA\MyCompany\git-postinstall.ok"
-New-Item -ItemType Directory -Force -Path (Split-Path $marker) | Out-Null
-"OK $(Get-Date -Format s)" | Set-Content -Path $marker -Encoding UTF8
+# 4) קונפיגורציה ללא scope (LOCAL) — תפעל רק אם הסשן נמצא בתוך ריפו.
+#    מחוץ לריפו זה ייתן שגיאה; אנו משתיקים אותה כדי לא להפיל את הפריסה.
+& $git config --unset-all credential.helper 2>$null
+& $git config --unset-all credential.useHttpPath 2>$null
+
+# # 5) Marker לזיהוי הצלחה (User)
+# $marker = "$env:LOCALAPPDATA\MyCompany\git-postinstall.ok"
+# New-Item -ItemType Directory -Force -Path (Split-Path $marker) | Out-Null
+# "OK $(Get-Date -Format s)" | Set-Content -Path $marker -Encoding UTF8
 
 exit 0
