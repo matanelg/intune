@@ -1,0 +1,10 @@
+install command
+powershell.exe -ExecutionPolicy Bypass -File .\install.ps1
+
+git config --global --get-all credential.helper            # צ"ל ללא פלט
+git config --global --get-all credential.useHttpPath       # צ"ל ללא פלט
+git config --global --get "credential.https://*.*.p.sourcemanager.dev.helper"  # אמור להחזיר gcloud.cmd
+
+
+git config --get-all credential.helper
+git config --get-all credential.useHttpPath
